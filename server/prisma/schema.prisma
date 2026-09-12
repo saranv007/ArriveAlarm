@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────
+
+enum AlarmType {
+  TIME
+  LOCATION
+  ARRIVAL
+  COMMUTE
+}
+
+enum AlarmStatus {
+  IDLE
+  ACTIVE
+  TRACKING
+  TRIGGERED
+  SNOOZED
+  COMPLETED
+  DISABLED
+}
+
+enum LocationType {
+  HOME
+  WORK
+  SCHOOL
+  CUSTOM
+}
+
+enum HistoryEventType {
+  CREATED
+  ENABLED
+  DISABLED
+  TRIGGERED
+  SNOOZED
+  STOPPED
+  CANCELLED
+}
+
+// ─── User ────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String?
+  avatar       String?
+  googleId     String?   @unique
+  timezone     String    @default("Asia/Kolkata")
+  units        String    @default("metric")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastLoginAt  DateTime?
+
+  alarms                Alarm[]
+  locations             Location[]
+  alarmHistory          AlarmHistory[]
+  notificationSubscriptions NotificationSubscription[]
+  settings              UserSettings?
+
+  @@index([email])
+  @@index([googleId])
+}
+
+// ─── Alarm ───────────────────────────────────────────────────
+
+model Alarm {
+  id                 String      @id @default(uuid())
+  userId             String
+  title              String
+  description        String?
+  type               AlarmType
+
+  // Location fields (nullable for TIME alarms)
+  targetLatitude     Float?
+  targetLongitude    Float?
+  targetAddress      String?
+  radius             Float?       @default(200)
+
+  // Time fields (nullable for LOCATION alarms)
+  alarmTime          DateTime?
+  hour               Int?
+  minute             Int?
+  repeatPattern      String?      @default("once")  // once, daily, weekdays, weekends, custom
+  customDays         Int[]        @default([])       // 0=Sun..6=Sat
+
+  // Configuration
+  sound              String       @default("classic")
+  volume             Int          @default(80)
+  vibration          Boolean      @default(true)
+  notificationEnabled Boolean     @default(true)
+  enabled            Boolean      @default(true)
+  status             AlarmStatus  @default(IDLE)
+  snoozeMinutes      Int          @default(5)
+  maxSnoozeCount     Int          @default(3)
+  snoozeCount        Int          @default(0)
+  durationSeconds    Int          @default(30)
+  autoStop           Boolean      @default(true)
+  batteryMode        String       @default("normal")
+
+  // Early alert
+  earlyAlertEnabled  Boolean      @default(false)
+  earlyAlertDistance Float?       @default(1000)
+
+  // Timestamps
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  triggeredAt        DateTime?
+  nextRingTime       DateTime?
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  history  AlarmHistory[]
+
+  @@index([userId])
+  @@index([userId, enabled])
+  @@index([type, enabled, nextRingTime])
+}
+
+// ─── Location (Saved Places) ────────────────────────────────
+
+model Location {
+  id        String       @id @default(uuid())
+  userId    String
+  name      String
+  address   String?
+  latitude  Float
+  longitude Float
+  type      LocationType @default(CUSTOM)
+
+  defaultRadius       Float    @default(200)
+  earlyAlertEnabled   Boolean  @default(false)
+  earlyAlertDistance   Float    @default(1000)
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── Alarm History ──────────────────────────────────────────
+
+model AlarmHistory {
+  id          String           @id @default(uuid())
+  alarmId     String
+  userId      String
+  eventType   HistoryEventType
+  triggeredAt DateTime         @default(now())
+  latitude    Float?
+  longitude   Float?
+  metadata    Json?
+
+  alarm Alarm @relation(fields: [alarmId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([alarmId])
+  @@index([userId, triggeredAt])
+}
+
+// ─── Notification Subscriptions ─────────────────────────────
+
+model NotificationSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── User Settings ──────────────────────────────────────────
+
+model UserSettings {
+  userId              String  @id
+  defaultRadius       Float   @default(200)
+  defaultSound        String  @default("classic")
+  defaultVolume       Int     @default(80)
+  defaultSnooze       Int     @default(5)
+  defaultVibration    Boolean @default(true)
+  defaultDurationSeconds Int  @default(30)
+  notificationsEnabled Boolean @default(true)
+  locationEnabled     Boolean @default(true)
+  darkMode            Boolean @default(true)
+  units               String  @default("metric")
+  timezone            String  @default("Asia/Kolkata")
+  timeFormat          String  @default("12h")
+  batteryMode         String  @default("normal")
+  autoStop            Boolean @default(true)
+  onboardingCompleted Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
