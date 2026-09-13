@@ -1,5 +1,6 @@
 {
   "buildCommand": "npm run build",
+  "installCommand": "npm install && npm --prefix server install",
   "outputDirectory": "dist",
   "rewrites": [
     {
@@ -12,4 +13,3 @@
     }
   ]
 }
-

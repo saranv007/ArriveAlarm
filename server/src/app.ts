@@ -23,12 +23,21 @@ export function createApp() {
   // ─── CORS ────────────────────────────────────────────
   app.use(
     cors({
-      origin: env.FRONTEND_URL,
+      origin: (origin, callback) => {
+        const frontendUrl = env.FRONTEND_URL;
+        // Allow same-origin requests (origin is undefined) or matching frontend URL
+        if (!origin || !frontendUrl || origin === frontendUrl) {
+          callback(null, true);
+        } else {
+          callback(null, false);
+        }
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
     })
   );
+
 
   // ─── Body Parsing ────────────────────────────────────
   app.use(express.json({ limit: '10kb' }));
