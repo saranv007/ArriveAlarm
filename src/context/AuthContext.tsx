@@ -36,11 +36,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Check if user is already authenticated on mount
   useEffect(() => {
     const checkAuth = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const oauthError = urlParams.get('error');
+      const oauthAuth = urlParams.get('auth');
+
+      if (oauthError) {
+        let errorMsg = 'Google login failed.';
+        if (oauthError === 'OAUTH_NOT_CONFIGURED') {
+          errorMsg = 'Google OAuth is not configured on server. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in environment variables.';
+        } else if (oauthError === 'CSRF_STATE_MISMATCH') {
+          errorMsg = 'Authentication security check failed (CSRF state mismatch). Please try again.';
+        } else if (oauthError === 'OAUTH_TOKEN_FAILED' || oauthError === 'OAUTH_USERINFO_FAILED') {
+          errorMsg = 'Failed to retrieve profile from Google. Please try again.';
+        } else if (oauthError !== 'OAUTH_FAILED') {
+          errorMsg = `Google login error: ${oauthError}`;
+        }
+        setError(errorMsg);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (oauthAuth === 'success') {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
       try {
         const response = await authApi.me();
         setUser(response.data.user);
       } catch {
-        // Not authenticated — that's fine
+        // Not authenticated — fine
         setUser(null);
       } finally {
         setIsLoading(false);
