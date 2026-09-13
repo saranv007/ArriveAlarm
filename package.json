@@ -8,7 +8,11 @@
     "build": "prisma generate && npx tsc --project server/tsconfig.json && tsc -b && vite build",
     "postinstall": "prisma generate",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.9.0",
