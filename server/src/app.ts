@@ -69,7 +69,7 @@ export function createApp() {
   app.use(['/api/dashboard', '/dashboard'], dashboardRoutes);
 
   // ─── 404 Handler ─────────────────────────────────────
-  app.use('*', (_req, res) => {
+  app.use((_req, res) => {
     res.status(404).json({
       success: false,
       error: {
