@@ -14,10 +14,22 @@ export function errorHandler(
   logger.error({ err: err.message, stack: err.stack }, 'Unhandled error');
 
   const statusCode = err.statusCode || 500;
-  const code = err.code || 'INTERNAL_ERROR';
-  const message = isProd() && statusCode === 500
-    ? 'An unexpected error occurred'
-    : err.message || 'Internal server error';
+  let code = err.code || 'INTERNAL_ERROR';
+  let message = err.message || 'Internal server error';
+
+  if (isProd() && statusCode === 500) {
+    if (
+      err.message?.includes("Can't reach database server") ||
+      err.message?.includes('ECONNREFUSED') ||
+      err.name === 'PrismaClientInitializationError' ||
+      err.name === 'PrismaClientKnownRequestError'
+    ) {
+      code = 'DATABASE_ERROR';
+      message = 'Database connection failed. Please ensure DATABASE_URL is set in Vercel Environment Variables.';
+    } else {
+      message = 'An unexpected error occurred';
+    }
+  }
 
   res.status(statusCode).json({
     success: false,
