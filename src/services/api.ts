@@ -59,12 +59,32 @@ async function request<T>(
   }
 
   const response = await fetch(url, config);
-  const data = await response.json();
+  
+  let data: any = null;
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      data = await response.json();
+    } catch (e) {
+      data = null;
+    }
+  }
+
+  if (!data) {
+    const text = await response.text().catch(() => '');
+    data = {
+      success: false,
+      error: {
+        code: `HTTP_${response.status}`,
+        message: text || `Server error (${response.status})`,
+      },
+    };
+  }
 
   if (!response.ok || !data.success) {
     throw new ApiError(
-      data.error?.code || 'UNKNOWN_ERROR',
-      data.error?.message || 'An error occurred',
+      data.error?.code || `HTTP_${response.status}`,
+      data.error?.message || `An error occurred (${response.status})`,
       response.status,
       data.error?.details
     );

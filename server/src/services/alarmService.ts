@@ -1,6 +1,7 @@
 import prisma from '../config/database.js';
 import type { CreateAlarmInput, UpdateAlarmInput } from '../validators/alarm.js';
-import type { AlarmType, AlarmStatus } from '@prisma/client';
+export type AlarmType = 'TIME' | 'LOCATION' | 'ARRIVAL' | 'COMMUTE';
+export type AlarmStatus = 'IDLE' | 'ACTIVE' | 'TRACKING' | 'TRIGGERED' | 'SNOOZED' | 'COMPLETED' | 'DISABLED';
 
 /**
  * Calculate the next ring time for a time-based alarm.

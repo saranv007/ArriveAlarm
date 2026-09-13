@@ -66,7 +66,7 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const weeklyMap: Record<string, number> = {};
   dayNames.forEach((d) => (weeklyMap[d] = 0));
-  recentHistory.forEach((entry) => {
+  recentHistory.forEach((entry: { triggeredAt: Date }) => {
     const dayName = dayNames[new Date(entry.triggeredAt).getDay()];
     weeklyMap[dayName] = (weeklyMap[dayName] || 0) + 1;
   });
