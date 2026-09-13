@@ -1,9 +1,11 @@
 import pino from 'pino';
-import { isDev } from './env.js';
+
+const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
+const isDev = process.env.NODE_ENV === 'development' && !isVercel;
 
 export const logger = pino({
-  level: isDev() ? 'debug' : 'info',
-  transport: isDev()
+  level: isDev ? 'debug' : 'info',
+  transport: isDev
     ? {
         target: 'pino-pretty',
         options: {
@@ -16,3 +18,4 @@ export const logger = pino({
 });
 
 export default logger;
+

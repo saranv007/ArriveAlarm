@@ -48,7 +48,7 @@ export function createApp() {
   app.use('/api', generalLimiter);
 
   // ─── Health Check ────────────────────────────────────
-  app.get('/api/health', (_req, res) => {
+  app.get(['/api/health', '/health'], (_req, res) => {
     res.json({
       success: true,
       data: {
@@ -60,16 +60,16 @@ export function createApp() {
   });
 
   // ─── Routes ──────────────────────────────────────────
-  app.use('/api/auth', authRoutes);
-  app.use('/api/users', userRoutes);
-  app.use('/api/alarms', alarmRoutes);
-  app.use('/api/locations', locationRoutes);
-  app.use('/api/history', historyRoutes);
-  app.use('/api/notifications', notificationRoutes);
-  app.use('/api/dashboard', dashboardRoutes);
+  app.use(['/api/auth', '/auth'], authRoutes);
+  app.use(['/api/users', '/users'], userRoutes);
+  app.use(['/api/alarms', '/alarms'], alarmRoutes);
+  app.use(['/api/locations', '/locations'], locationRoutes);
+  app.use(['/api/history', '/history'], historyRoutes);
+  app.use(['/api/notifications', '/notifications'], notificationRoutes);
+  app.use(['/api/dashboard', '/dashboard'], dashboardRoutes);
 
   // ─── 404 Handler ─────────────────────────────────────
-  app.use('/api/*', (_req, res) => {
+  app.use('*', (_req, res) => {
     res.status(404).json({
       success: false,
       error: {
@@ -84,3 +84,4 @@ export function createApp() {
 
   return app;
 }
+

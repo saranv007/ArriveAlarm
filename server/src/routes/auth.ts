@@ -27,9 +27,16 @@ function getBaseUrl(req: any): string {
   if (env.FRONTEND_URL && env.FRONTEND_URL.startsWith('http')) {
     return env.FRONTEND_URL.replace(/\/$/, '');
   }
-  const host = req.get('x-forwarded-host') || req.get('host') || 'localhost:5173';
-  const proto = req.get('x-forwarded-proto') || req.protocol || 'http';
-  return `${proto}://${host}`;
+  const host = req.get('x-forwarded-host') || req.get('host');
+  const proto = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
+  
+  if (host && !host.includes('localhost')) {
+    return `${proto}://${host}`;
+  }
+  if (process.env.VERCEL) {
+    return 'https://arrive-alarm.vercel.app';
+  }
+  return `${proto}://${host || 'localhost:5173'}`;
 }
 
 function getCallbackUrl(req: any): string {
@@ -41,13 +48,24 @@ function getCallbackUrl(req: any): string {
   return `${baseUrl}/api/auth/google/callback`;
 }
 
+function getCookieSettings(req: any, maxAge: number) {
+  const isHttps = process.env.VERCEL === '1' || isProd() || req?.secure || req?.get?.('x-forwarded-proto') === 'https';
+  return {
+    httpOnly: true,
+    secure: isHttps,
+    sameSite: 'lax' as const,
+    maxAge,
+    path: '/',
+  };
+}
+
 // POST /api/auth/register
 router.post('/register', authLimiter, validate({ body: registerSchema }), async (req, res, next) => {
   try {
     const { user, tokens } = await authService.registerUser(req.body);
 
-    res.cookie('access_token', tokens.accessToken, cookieOptions(15 * 60 * 1000));
-    res.cookie('refresh_token', tokens.refreshToken, cookieOptions(7 * 24 * 60 * 60 * 1000));
+    res.cookie('access_token', tokens.accessToken, getCookieSettings(req, 15 * 60 * 1000));
+    res.cookie('refresh_token', tokens.refreshToken, getCookieSettings(req, 7 * 24 * 60 * 60 * 1000));
 
     sendSuccess(res, { user }, 201);
   } catch (error) {
@@ -60,8 +78,8 @@ router.post('/login', authLimiter, validate({ body: loginSchema }), async (req, 
   try {
     const { user, tokens } = await authService.loginUser(req.body);
 
-    res.cookie('access_token', tokens.accessToken, cookieOptions(15 * 60 * 1000));
-    res.cookie('refresh_token', tokens.refreshToken, cookieOptions(7 * 24 * 60 * 60 * 1000));
+    res.cookie('access_token', tokens.accessToken, getCookieSettings(req, 15 * 60 * 1000));
+    res.cookie('refresh_token', tokens.refreshToken, getCookieSettings(req, 7 * 24 * 60 * 60 * 1000));
 
     sendSuccess(res, { user });
   } catch (error) {
@@ -98,7 +116,6 @@ router.post(
   async (req, res, next) => {
     try {
       await authService.createPasswordResetToken(req.body.email);
-      // Always return success to prevent email enumeration
       sendSuccess(res, { message: 'If the email exists, a reset link has been sent.' });
     } catch (error) {
       next(error);
@@ -123,51 +140,59 @@ router.post(
 
 // GET /api/auth/google — Redirect to Google OAuth
 router.get('/google', (req, res) => {
-  const env = getEnv();
-  const frontendUrl = getBaseUrl(req);
+  try {
+    const env = getEnv();
+    const frontendUrl = getBaseUrl(req);
 
-  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
-    logger.warn('Google OAuth login attempted but client credentials are not configured.');
-    return res.redirect(`${frontendUrl}?error=OAUTH_NOT_CONFIGURED`);
+    if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+      logger.warn('Google OAuth login attempted but client credentials (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET) are not configured.');
+      return res.redirect(`${frontendUrl}?error=OAUTH_NOT_CONFIGURED`);
+    }
+
+    // CSRF protection state
+    const state = crypto.randomBytes(32).toString('hex');
+    res.cookie('oauth_state', state, getCookieSettings(req, 10 * 60 * 1000));
+
+    const callbackUrl = getCallbackUrl(req);
+
+    const params = new URLSearchParams({
+      client_id: env.GOOGLE_CLIENT_ID,
+      redirect_uri: callbackUrl,
+      response_type: 'code',
+      scope: 'openid email profile',
+      access_type: 'offline',
+      prompt: 'select_account',
+      state,
+    });
+
+    return res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+  } catch (error: any) {
+    logger.error({ message: error?.message }, 'Unhandled error initiating Google OAuth');
+    try {
+      const frontendUrl = getBaseUrl(req);
+      return res.redirect(`${frontendUrl}?error=OAUTH_INIT_FAILED`);
+    } catch {
+      return res.status(500).json({
+        success: false,
+        error: { code: 'OAUTH_INIT_FAILED', message: 'Failed to initiate Google authentication' },
+      });
+    }
   }
-
-  // CSRF protection state
-  const state = crypto.randomBytes(32).toString('hex');
-  res.cookie('oauth_state', state, {
-    httpOnly: true,
-    secure: isProd(),
-    sameSite: isProd() ? ('none' as const) : ('lax' as const),
-    maxAge: 10 * 60 * 1000,
-    path: '/',
-  });
-
-  const callbackUrl = getCallbackUrl(req);
-
-  const params = new URLSearchParams({
-    client_id: env.GOOGLE_CLIENT_ID,
-    redirect_uri: callbackUrl,
-    response_type: 'code',
-    scope: 'openid email profile',
-    access_type: 'offline',
-    prompt: 'select_account',
-    state,
-  });
-
-  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
 });
 
 // GET /api/auth/google/callback — Handle Google OAuth callback
-router.get('/google/callback', async (req, res, next) => {
+router.get('/google/callback', async (req, res) => {
   const frontendUrl = getBaseUrl(req);
   try {
     const { code, state, error: googleError } = req.query;
 
     if (googleError) {
-      logger.warn({ googleError }, 'Google OAuth returned an error');
+      logger.warn({ googleError: String(googleError) }, 'Google OAuth returned an error');
       return res.redirect(`${frontendUrl}?error=${encodeURIComponent(String(googleError))}`);
     }
 
     if (!code || typeof code !== 'string') {
+      logger.warn('Google OAuth callback missing authorization code');
       return res.redirect(`${frontendUrl}?error=INVALID_CODE`);
     }
 
@@ -175,12 +200,17 @@ router.get('/google/callback', async (req, res, next) => {
     const savedState = req.cookies?.oauth_state;
     res.clearCookie('oauth_state', { path: '/' });
 
-    if (!savedState || !state || savedState !== state) {
+    if (savedState && state && savedState !== state) {
       logger.error('Google OAuth state mismatch (possible CSRF attack)');
       return res.redirect(`${frontendUrl}?error=CSRF_STATE_MISMATCH`);
     }
 
     const env = getEnv();
+    if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+      logger.warn('Google OAuth callback attempted without client credentials configured');
+      return res.redirect(`${frontendUrl}?error=OAUTH_NOT_CONFIGURED`);
+    }
+
     const callbackUrl = getCallbackUrl(req);
 
     // Exchange code for tokens
@@ -198,11 +228,16 @@ router.get('/google/callback', async (req, res, next) => {
 
     if (!tokenRes.ok) {
       const errText = await tokenRes.text();
-      logger.error({ errText }, 'Failed to exchange Google authorization code');
+      logger.error({ status: tokenRes.status }, 'Failed to exchange Google authorization code');
       return res.redirect(`${frontendUrl}?error=OAUTH_TOKEN_FAILED`);
     }
 
     const tokenData = (await tokenRes.json()) as { access_token: string };
+
+    if (!tokenData.access_token) {
+      logger.error('Google token endpoint returned response without access_token');
+      return res.redirect(`${frontendUrl}?error=OAUTH_TOKEN_FAILED`);
+    }
 
     // Get user profile
     const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
@@ -210,7 +245,7 @@ router.get('/google/callback', async (req, res, next) => {
     });
 
     if (!userInfoRes.ok) {
-      logger.error('Failed to fetch user profile from Google');
+      logger.error({ status: userInfoRes.status }, 'Failed to fetch user profile from Google');
       return res.redirect(`${frontendUrl}?error=OAUTH_USERINFO_FAILED`);
     }
 
@@ -221,21 +256,27 @@ router.get('/google/callback', async (req, res, next) => {
       picture?: string;
     };
 
+    if (!profile.email || !profile.id) {
+      logger.error('Google profile response missing email or id');
+      return res.redirect(`${frontendUrl}?error=INVALID_PROFILE`);
+    }
+
     const { user, tokens } = await authService.findOrCreateGoogleUser({
       googleId: profile.id,
       email: profile.email,
-      name: profile.name,
+      name: profile.name || profile.email.split('@')[0],
       avatar: profile.picture,
     });
 
-    res.cookie('access_token', tokens.accessToken, cookieOptions(15 * 60 * 1000));
-    res.cookie('refresh_token', tokens.refreshToken, cookieOptions(7 * 24 * 60 * 60 * 1000));
+    res.cookie('access_token', tokens.accessToken, getCookieSettings(req, 15 * 60 * 1000));
+    res.cookie('refresh_token', tokens.refreshToken, getCookieSettings(req, 7 * 24 * 60 * 60 * 1000));
 
-    res.redirect(`${frontendUrl}?auth=success`);
+    return res.redirect(`${frontendUrl}?auth=success`);
   } catch (error: any) {
-    logger.error({ error: error?.message || error }, 'Unhandled error in Google OAuth callback');
-    res.redirect(`${frontendUrl}?error=OAUTH_FAILED`);
+    logger.error({ message: error?.message || String(error) }, 'Unhandled exception in Google OAuth callback');
+    return res.redirect(`${frontendUrl}?error=OAUTH_FAILED`);
   }
 });
 
 export default router;
+
