@@ -1,6 +1,6 @@
 {
   "buildCommand": "npm run build",
-  "installCommand": "npm install && npm --prefix server install",
+  "installCommand": "npm install",
   "outputDirectory": "dist",
   "rewrites": [
     {
