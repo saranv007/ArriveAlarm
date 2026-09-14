@@ -24,13 +24,34 @@ export function createApp() {
   app.use(
     cors({
       origin: (origin, callback) => {
-        const frontendUrl = env.FRONTEND_URL;
-        // Allow same-origin requests (origin is undefined) or matching frontend URL
-        if (!origin || !frontendUrl || origin === frontendUrl) {
-          callback(null, true);
-        } else {
-          callback(null, false);
+        const frontendUrl = env.FRONTEND_URL?.replace(/\/$/, '');
+
+        // Allow same-origin / no-origin (server-to-server, curl, Vercel functions)
+        if (!origin) {
+          return callback(null, true);
         }
+
+        // If FRONTEND_URL is not configured, allow all origins (dev/unset scenario)
+        if (!frontendUrl) {
+          return callback(null, true);
+        }
+
+        // Allow the configured frontend URL
+        if (origin === frontendUrl) {
+          return callback(null, true);
+        }
+
+        // Allow all Vercel preview deployments for this project
+        if (origin.match(/^https:\/\/arrive-alarm[a-z0-9-]*\.vercel\.app$/)) {
+          return callback(null, true);
+        }
+
+        // Allow localhost for development
+        if (origin.match(/^http:\/\/localhost(:\d+)?$/) || origin.match(/^http:\/\/127\.0\.0\.1(:\d+)?$/)) {
+          return callback(null, true);
+        }
+
+        callback(null, false);
       },
       credentials: true,
       methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],

@@ -11,7 +11,10 @@ const envSchema = z.object({
   VAPID_PRIVATE_KEY: z.string().optional().default(''),
   VAPID_SUBJECT: z.string().optional().default('mailto:admin@arrivealarm.app'),
   PORT: z.coerce.number().default(3001),
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  // Default to 'production' when running on Vercel, otherwise 'development'
+  NODE_ENV: z.enum(['development', 'production', 'test']).default(
+    process.env.VERCEL ? 'production' : 'development'
+  ),
   FRONTEND_URL: z.string().optional().default(''),
 });
 
@@ -41,5 +44,5 @@ export function isDev(): boolean {
 }
 
 export function isProd(): boolean {
-  return getEnv().NODE_ENV === 'production';
+  return getEnv().NODE_ENV === 'production' || !!process.env.VERCEL;
 }
