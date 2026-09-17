@@ -41,15 +41,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const oauthAuth = urlParams.get('auth');
 
       if (oauthError) {
-        let errorMsg = 'Google login failed.';
+        let errorMsg = 'Google sign-in could not be completed. Please try again.';
         if (oauthError === 'OAUTH_NOT_CONFIGURED') {
-          errorMsg = 'Google OAuth is not configured on server. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in environment variables.';
+          errorMsg = 'Google OAuth is not configured on the server. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in environment variables.';
         } else if (oauthError === 'CSRF_STATE_MISMATCH') {
           errorMsg = 'Authentication security check failed (CSRF state mismatch). Please try again.';
         } else if (oauthError === 'OAUTH_TOKEN_FAILED' || oauthError === 'OAUTH_USERINFO_FAILED') {
           errorMsg = 'Failed to retrieve profile from Google. Please try again.';
+        } else if (oauthError === 'access_denied') {
+          errorMsg = 'Google sign-in was cancelled. Please try again.';
         } else if (oauthError !== 'OAUTH_FAILED') {
-          errorMsg = `Google login error: ${oauthError}`;
+          errorMsg = `Google sign-in error: ${oauthError}`;
         }
         setError(errorMsg);
         window.history.replaceState({}, document.title, window.location.pathname);

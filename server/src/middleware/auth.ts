@@ -51,9 +51,10 @@ export async function requireAuth(
         if (user) {
           // Issue new access token
           const newAccessToken = signAccessToken({ userId: user.id, email: user.email });
+          const isHttps = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production' || req.secure || req.get('x-forwarded-proto') === 'https';
           res.cookie('access_token', newAccessToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
+            secure: isHttps,
             sameSite: 'lax',
             maxAge: 15 * 60 * 1000, // 15 minutes
             path: '/',
