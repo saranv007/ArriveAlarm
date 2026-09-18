@@ -42,11 +42,13 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   const url = `${API_BASE}${endpoint}`;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
 
   const config: RequestInit = {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
     ...options,
@@ -96,20 +98,35 @@ async function request<T>(
 // ─── Auth API ────────────────────────────────────────────────
 
 export const authApi = {
-  register: (body: { name: string; email: string; password: string }) =>
-    request<{ user: any }>('/api/auth/register', {
+  register: async (body: { name: string; email: string; password: string }) => {
+    const res = await request<{ user: any; tokens?: { accessToken: string } }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(body),
-    }),
+    });
+    if (res.data?.tokens?.accessToken) {
+      localStorage.setItem('access_token', res.data.tokens.accessToken);
+    }
+    return res;
+  },
 
-  login: (body: { email: string; password: string }) =>
-    request<{ user: any }>('/api/auth/login', {
+  login: async (body: { email: string; password: string }) => {
+    const res = await request<{ user: any; tokens?: { accessToken: string } }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(body),
-    }),
+    });
+    if (res.data?.tokens?.accessToken) {
+      localStorage.setItem('access_token', res.data.tokens.accessToken);
+    }
+    return res;
+  },
 
-  logout: () =>
-    request<{ message: string }>('/api/auth/logout', { method: 'POST' }),
+  logout: async () => {
+    try {
+      await request<{ message: string }>('/api/auth/logout', { method: 'POST' });
+    } finally {
+      localStorage.removeItem('access_token');
+    }
+  },
 
   me: () =>
     request<{ user: any }>('/api/auth/me'),

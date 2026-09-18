@@ -53,7 +53,7 @@ function getCookieSettings(req: any, maxAge: number) {
   return {
     httpOnly: true,
     secure: isHttps,
-    sameSite: 'lax' as const,
+    sameSite: (isHttps ? 'none' : 'lax') as 'none' | 'lax',
     maxAge,
     path: '/',
   };
@@ -67,7 +67,7 @@ router.post('/register', authLimiter, validate({ body: registerSchema }), async 
     res.cookie('access_token', tokens.accessToken, getCookieSettings(req, 15 * 60 * 1000));
     res.cookie('refresh_token', tokens.refreshToken, getCookieSettings(req, 7 * 24 * 60 * 60 * 1000));
 
-    sendSuccess(res, { user }, 201);
+    sendSuccess(res, { user, tokens }, 201);
   } catch (error) {
     next(error);
   }
@@ -81,7 +81,7 @@ router.post('/login', authLimiter, validate({ body: loginSchema }), async (req, 
     res.cookie('access_token', tokens.accessToken, getCookieSettings(req, 15 * 60 * 1000));
     res.cookie('refresh_token', tokens.refreshToken, getCookieSettings(req, 7 * 24 * 60 * 60 * 1000));
 
-    sendSuccess(res, { user });
+    sendSuccess(res, { user, tokens });
   } catch (error) {
     next(error);
   }

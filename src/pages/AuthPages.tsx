@@ -3,7 +3,7 @@ import { MapPin, Mail, Lock, Eye, EyeOff, Loader2, ArrowRight } from 'lucide-rea
 import { useAuth } from '../context/AuthContext';
 
 export const LoginPage: React.FC<{ onSwitchToRegister: () => void }> = ({ onSwitchToRegister }) => {
-  const { login, loginWithGoogle, error, clearError } = useAuth();
+  const { login, loginAsGuest, loginWithGoogle, error, clearError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -100,6 +100,17 @@ export const LoginPage: React.FC<{ onSwitchToRegister: () => void }> = ({ onSwit
             </button>
           </form>
 
+          {/* Guest / Offline Mode Option */}
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={loginAsGuest}
+              className="w-full py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>⚡ Continue as Guest (Offline Demo)</span>
+            </button>
+          </div>
+
           {/* Divider */}
           <div className="flex items-center gap-3 my-5">
             <div className="flex-1 h-px bg-[#222222]" />
@@ -150,7 +161,7 @@ export const LoginPage: React.FC<{ onSwitchToRegister: () => void }> = ({ onSwit
 };
 
 export const RegisterPage: React.FC<{ onSwitchToLogin: () => void }> = ({ onSwitchToLogin }) => {
-  const { register, loginWithGoogle, error, clearError } = useAuth();
+  const { register, loginAsGuest, loginWithGoogle, error, clearError } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -296,6 +307,17 @@ export const RegisterPage: React.FC<{ onSwitchToLogin: () => void }> = ({ onSwit
               )}
             </button>
           </form>
+
+          {/* Guest / Offline Mode Option */}
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={loginAsGuest}
+              className="w-full py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>⚡ Continue as Guest (Offline Demo)</span>
+            </button>
+          </div>
 
           {/* Divider */}
           <div className="flex items-center gap-3 my-5">

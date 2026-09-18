@@ -21,12 +21,26 @@ interface AuthContextType {
   error: string | null;
   login: (email: string, password: string) => Promise<boolean>;
   register: (name: string, email: string, password: string) => Promise<boolean>;
+  loginAsGuest: () => void;
   logout: () => Promise<void>;
   loginWithGoogle: () => void;
   clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const GUEST_USER: User = {
+  id: 'guest-user-1',
+  name: 'Guest Traveler',
+  email: 'guest@arrivealarm.app',
+  avatar: null,
+  googleId: null,
+  timezone: 'Asia/Kolkata',
+  units: 'metric',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  lastLoginAt: new Date().toISOString(),
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -57,6 +71,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         window.history.replaceState({}, document.title, window.location.pathname);
       }
 
+      // Check if guest user session exists locally
+      const isGuestStored = localStorage.getItem('arrivealarm_guest_session') === 'true';
+      if (isGuestStored) {
+        setUser(GUEST_USER);
+        setIsLoading(false);
+        return;
+      }
+
       try {
         const response = await authApi.me();
         setUser(response.data.user);
@@ -74,11 +96,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     setError(null);
     try {
+      localStorage.removeItem('arrivealarm_guest_session');
       const response = await authApi.login({ email, password });
       setUser(response.data.user);
       return true;
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      setError(err.message || 'Login failed. If backend database is offline, click "Continue as Guest".');
       return false;
     }
   }, []);
@@ -86,16 +109,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = useCallback(async (name: string, email: string, password: string): Promise<boolean> => {
     setError(null);
     try {
+      localStorage.removeItem('arrivealarm_guest_session');
       const response = await authApi.register({ name, email, password });
       setUser(response.data.user);
       return true;
     } catch (err: any) {
-      setError(err.message || 'Registration failed');
+      setError(err.message || 'Registration failed. If backend database is offline, click "Continue as Guest".');
       return false;
     }
   }, []);
 
+  const loginAsGuest = useCallback(() => {
+    setError(null);
+    localStorage.setItem('arrivealarm_guest_session', 'true');
+    setUser(GUEST_USER);
+  }, []);
+
   const logout = useCallback(async () => {
+    localStorage.removeItem('arrivealarm_guest_session');
     try {
       await authApi.logout();
     } catch {
@@ -121,6 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error,
         login,
         register,
+        loginAsGuest,
         logout,
         loginWithGoogle,
         clearError,

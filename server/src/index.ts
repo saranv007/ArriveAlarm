@@ -14,8 +14,7 @@ async function main() {
     await prisma.$connect();
     logger.info('✅ Database connected');
   } catch (error) {
-    logger.error({ error }, '❌ Failed to connect to database');
-    process.exit(1);
+    logger.warn('⚠️ Could not connect to PostgreSQL database. API will run in offline fallback mode.');
   }
 
   // Start alarm scheduler
