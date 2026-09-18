@@ -88,9 +88,10 @@ router.post('/login', authLimiter, validate({ body: loginSchema }), async (req, 
 });
 
 // POST /api/auth/logout
-router.post('/logout', (_req, res) => {
-  res.clearCookie('access_token', { path: '/' });
-  res.clearCookie('refresh_token', { path: '/' });
+router.post('/logout', (req, res) => {
+  const cookieSettings = getCookieSettings(req, 0);
+  res.clearCookie('access_token', cookieSettings);
+  res.clearCookie('refresh_token', cookieSettings);
   sendSuccess(res, { message: 'Logged out successfully' });
 });
 
@@ -198,10 +199,11 @@ router.get('/google/callback', async (req, res) => {
 
     // Validate CSRF state token
     const savedState = req.cookies?.oauth_state;
-    res.clearCookie('oauth_state', { path: '/' });
+    const cookieSettings = getCookieSettings(req, 0);
+    res.clearCookie('oauth_state', cookieSettings);
 
-    if (savedState && state && savedState !== state) {
-      logger.error('Google OAuth state mismatch (possible CSRF attack)');
+    if (state && (!savedState || savedState !== state)) {
+      logger.error({ savedState, state }, 'Google OAuth state mismatch (possible CSRF attack)');
       return res.redirect(`${frontendUrl}?error=CSRF_STATE_MISMATCH`);
     }
 
